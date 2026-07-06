@@ -12,7 +12,7 @@ void main() async {
   
   final prefs = await SharedPreferences.getInstance();
   final storageService = StorageService(prefs);
-  
+
   runApp(
     ProviderScope(
       overrides: [
@@ -40,7 +40,7 @@ class _MyAppState extends ConsumerState<MyApp> {
   Future<void> _initNotifications() async {
     final notificationService = ref.read(notificationServiceProvider);
     await notificationService.init();
-    
+
     final settings = ref.read(settingsProvider);
     if (settings.notificationsEnabled) {
       notificationService.scheduleNotification(settings.reminderIntervalHours);

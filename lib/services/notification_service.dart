@@ -1,4 +1,5 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_native_timezone_latest/flutter_native_timezone_latest.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
 
@@ -8,6 +9,9 @@ class NotificationService {
 
   Future<void> init() async {
     tz.initializeTimeZones();
+    final String currentTimeZone = await FlutterNativeTimezoneLatest.getLocalTimezone();
+    tz.setLocalLocation(tz.getLocation(currentTimeZone));
+
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -36,11 +40,13 @@ class NotificationService {
     await _notificationsPlugin.cancelAll();
 
     for (int i = 1; i <= 10; i++) {
+      final scheduledTime =
+      tz.TZDateTime.now(tz.local).add(Duration(hours: intervalHours * i));
       await _notificationsPlugin.zonedSchedule(
         i,
         'Drink Water!',
         'Time to stay hydrated. Drink some water.',
-        tz.TZDateTime.now(tz.local).add(Duration(hours: intervalHours * i)),
+        scheduledTime,
         const NotificationDetails(
           android: AndroidNotificationDetails(
             'hydration_reminder_channel',
