@@ -1,4 +1,4 @@
-package com.example.keep_me_hydrated
+package com.viren.keep_me_hydrated
 
 import io.flutter.embedding.android.FlutterActivity
 
