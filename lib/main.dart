@@ -4,20 +4,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/water_provider.dart';
 import 'providers/settings_provider.dart';
 import 'services/storage_service.dart';
-import 'screens/home_screen.dart';
 import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   final prefs = await SharedPreferences.getInstance();
   final storageService = StorageService(prefs);
 
   runApp(
     ProviderScope(
-      overrides: [
-        storageServiceProvider.overrideWithValue(storageService),
-      ],
+      overrides: [storageServiceProvider.overrideWithValue(storageService)],
       child: const MyApp(),
     ),
   );
