@@ -8,6 +8,8 @@
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
 		<string>Keep Me Hydrated</string>
+		<key>GADApplicationIdentifier</key>
+        <string>ca-app-pub-9085836508167933~5311168433</string>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>

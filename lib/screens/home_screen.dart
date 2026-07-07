@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:intl/intl.dart';
 import '../providers/settings_provider.dart';
 import '../providers/water_provider.dart';
+import '../services/ad_helper.dart';
 import '../services/notification_service.dart';
 import '../widgets/water_progress_indicator.dart';
 import '../widgets/quick_add_buttons.dart';
@@ -16,16 +18,82 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
+  BannerAd? _bannerAd;
+  InterstitialAd? _interstitialAd;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _loadBannerAd();
+    _loadInterstitialAd();
+  }
+
+  void _loadBannerAd() {
+    BannerAd(
+      adUnitId: AdHelper.bannerAdUnitId,
+      request: const AdRequest(),
+      size: AdSize.banner,
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          setState(() {
+            _bannerAd = ad as BannerAd;
+          });
+        },
+        onAdFailedToLoad: (ad, err) {
+          debugPrint("Banner failed: ${err.code}, ${err.message}");
+          ad.dispose();
+        },
+      ),
+    ).load();
+  }
+
+  void _loadInterstitialAd() {
+    InterstitialAd.load(
+      adUnitId: AdHelper.interstitialAdUnitId,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          ad.fullScreenContentCallback = FullScreenContentCallback(
+            onAdDismissedFullScreenContent: (ad) {}
+          );
+          setState(() {
+            _interstitialAd = ad;
+          });
+        },
+        onAdFailedToLoad: (err) {
+          debugPrint('InterstitialAd failed to load: $err');
+        },
+      ),
+    );
+  }
+
+  void showInterstitialAd() {
+    if (_interstitialAd != null) {
+      _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
+        onAdDismissedFullScreenContent: (ad) {
+          ad.dispose();
+          _loadInterstitialAd();
+        },
+        onAdFailedToShowFullScreenContent: (ad, err) {
+          ad.dispose();
+          _loadInterstitialAd();
+        },
+      );
+      _interstitialAd!.show();
+      _interstitialAd = null;
+    } else {
+      debugPrint('Interstitial ad is not ready yet.');
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _bannerAd?.dispose();
+    _interstitialAd?.dispose();
     super.dispose();
   }
 
@@ -40,7 +108,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   Widget build(BuildContext context) {
     final waterData = ref.watch(waterProvider);
     final remaining = waterData.dailyGoal - waterData.consumedAmount;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Keep Me Hydrated'),
@@ -63,85 +130,112 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SizedBox(height: 10),
-            WaterProgressIndicator(
-              consumed: waterData.consumedAmount,
-              goal: waterData.dailyGoal,
-            ),
-            const SizedBox(height: 30),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildInfoCard(
-                  context,
-                  'Goal',
-                  '${waterData.dailyGoal} ml',
-                  Icons.flag_rounded,
-                  Colors.blue,
-                ),
-                _buildInfoCard(
-                  context,
-                  'Remaining',
-                  '${remaining < 0 ? 0 : remaining} ml',
-                  Icons.hourglass_empty_rounded,
-                  Colors.orange,
-                ),
-              ],
-            ),
-            const SizedBox(height: 30),
-            const QuickAddButtons(),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: () => _showAddCustomAmountDialog(context, ref),
-              icon: const Icon(Icons.add),
-              label: const Text('Add Custom Amount'),
-            ),
-            const SizedBox(height: 30),
-            const Divider(),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Today\'s Logs',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 10),
-            if (waterData.logs.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Text('No water added yet today'),
-              )
-            else
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: waterData.logs.length,
-                itemBuilder: (context, index) {
-                  final log = waterData.logs[index];
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.water_drop, color: Colors.blue),
-                    title: Text('${log.amount} ml${log.label != null && log.label!.isNotEmpty ? ' (${log.label})' : ''}'),
-                    subtitle: Text(DateFormat('hh:mm a').format(log.timestamp)),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      onPressed: () => ref.read(waterProvider.notifier).removeLog(log.id),
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 10),
+                  WaterProgressIndicator(
+                    consumed: waterData.consumedAmount,
+                    goal: waterData.dailyGoal,
+                  ),
+                  const SizedBox(height: 30),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildInfoCard(
+                        context,
+                        'Goal',
+                        '${waterData.dailyGoal} ml',
+                        Icons.flag_rounded,
+                        Colors.blue,
+                      ),
+                      _buildInfoCard(
+                        context,
+                        'Remaining',
+                        '${remaining < 0 ? 0 : remaining} ml',
+                        Icons.hourglass_empty_rounded,
+                        Colors.orange,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+                  QuickAddButtons(callAds: () {
+                    showInterstitialAd();
+                  },),
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: () => _showAddCustomAmountDialog(context, ref),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Custom Amount'),
+                  ),
+                  const SizedBox(height: 30),
+                  const Divider(),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Today\'s Logs',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                     ),
-                  );
-                },
+                  ),
+                  const SizedBox(height: 10),
+                  if (waterData.logs.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Text('No water added yet today'),
+                    )
+                  else
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: waterData.logs.length,
+                      itemBuilder: (context, index) {
+                        final log = waterData.logs[index];
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.water_drop, color: Colors.blue),
+                          title: Text(
+                            '${log.amount} ml${log.label != null && log.label!.isNotEmpty ? ' (${log.label})' : ''}',
+                          ),
+                          subtitle: Text(DateFormat('hh:mm a').format(log.timestamp)),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete_outline, color: Colors.red),
+                            onPressed: () =>
+                                ref.read(waterProvider.notifier).removeLog(log.id),
+                          ),
+                        );
+                      },
+                    ),
+                ],
               ),
-          ],
-        ),
+            ),
+          ),
+          if (_bannerAd != null)
+            SafeArea(
+              child: SizedBox(
+                width: _bannerAd!.size.width.toDouble(),
+                height: _bannerAd!.size.height.toDouble(),
+                child: AdWidget(ad: _bannerAd!),
+              ),
+            ),
+        ],
       ),
     );
   }
 
-  Widget _buildInfoCard(BuildContext context, String title, String value, IconData icon, Color color) {
+  Widget _buildInfoCard(
+    BuildContext context,
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Card(
       elevation: 0,
       color: color.withOpacity(0.1),
@@ -155,9 +249,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             Text(
               value,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
             ),
           ],
         ),
@@ -205,11 +299,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             onPressed: () {
               final amount = int.tryParse(amountController.text);
               if (amount != null && amount > 0) {
-                ref.read(waterProvider.notifier).addWater(
-                      amount,
-                      label: labelController.text.trim(),
-                    );
+                ref
+                    .read(waterProvider.notifier)
+                    .addWater(amount, label: labelController.text.trim());
                 Navigator.pop(context);
+                showInterstitialAd();
               }
             },
             child: const Text('Add'),

@@ -1,13 +1,81 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../providers/settings_provider.dart';
 import '../providers/water_provider.dart';
+import '../services/ad_helper.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  RewardedAd? _rewardedAd;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRewardedAd();
+  }
+
+  void _loadRewardedAd() {
+    RewardedAd.load(
+      adUnitId: AdHelper.rewardedAdUnitId,
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (ad) {
+          setState(() {
+            _rewardedAd = ad;
+          });
+        },
+        onAdFailedToLoad: (err) {
+          debugPrint('RewardedAd failed to load: $err');
+        },
+      ),
+    );
+  }
+
+  void _showRewardedAdIfNeeded() {
+    if (_rewardedAd == null) {
+      _loadRewardedAd();
+      return;
+    }
+
+    final ad = _rewardedAd!;
+
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
+        ad.dispose();
+        _rewardedAd = null;
+        _loadRewardedAd(); // Load next ad
+      },
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        ad.dispose();
+        _rewardedAd = null;
+        _loadRewardedAd();
+      },
+    );
+
+    ad.show(
+      onUserEarnedReward: (ad, reward) {
+        // Reward callback
+      },
+    );
+
+    _rewardedAd = null;
+  }
+
+  @override
+  void dispose() {
+    _rewardedAd?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final waterData = ref.watch(waterProvider);
 
@@ -21,29 +89,39 @@ class SettingsScreen extends ConsumerWidget {
             title: const Text('Daily Water Goal'),
             subtitle: Text('${waterData.dailyGoal} ml'),
             trailing: const Icon(Icons.edit),
-            onTap: () => _showSetGoalDialog(context, ref, waterData.dailyGoal),
+            onTap: () {
+              _showSetGoalDialog(context, ref, waterData.dailyGoal);
+              _showRewardedAdIfNeeded();
+            },
           ),
           const Divider(),
           SwitchListTile(
             title: const Text('Enable Notifications'),
             subtitle: const Text('Get reminded to drink water'),
             value: settings.notificationsEnabled,
-            onChanged: (value) =>
-                ref.read(settingsProvider.notifier).toggleNotifications(value),
+            onChanged: (value) {
+              ref.read(settingsProvider.notifier).toggleNotifications(value);
+              _showRewardedAdIfNeeded();
+            },
           ),
           ListTile(
             title: const Text('Reminder Interval'),
             subtitle: Text('Every ${settings.reminderIntervalHours} hour(s)'),
             enabled: settings.notificationsEnabled,
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => _showIntervalPicker(context, ref, settings.reminderIntervalHours),
+            onTap: () {
+              _showIntervalPicker(context, ref, settings.reminderIntervalHours);
+              _showRewardedAdIfNeeded();
+            },
           ),
           const Divider(),
           SwitchListTile(
             title: const Text('Dark Mode'),
             value: settings.isDarkMode,
-            onChanged: (value) =>
-                ref.read(settingsProvider.notifier).toggleDarkMode(value),
+            onChanged: (value) {
+              ref.read(settingsProvider.notifier).toggleDarkMode(value);
+              _showRewardedAdIfNeeded();
+            },
           ),
           const Divider(),
           ListTile(
@@ -55,6 +133,7 @@ class SettingsScreen extends ConsumerWidget {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Progress reset')),
               );
+              _showRewardedAdIfNeeded();
             },
           ),
         ],

@@ -21,7 +21,7 @@ class WaterNotifier extends StateNotifier<WaterData> {
   WaterNotifier(this._storageService, this._audioService, WaterData initialData)
       : super(initialData);
 
-  void addWater(int amount, {String? label}) {
+  Future<void> addWater(int amount, {String? label}) async {
     _checkAndResetDay();
     final log = WaterLog(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -31,7 +31,7 @@ class WaterNotifier extends StateNotifier<WaterData> {
     );
     state = state.copyWith(logs: [...state.logs, log]);
     _storageService.saveWaterData(state);
-    _audioService.playWaterSound();
+    await _audioService.playWaterSound();
   }
 
   void removeLog(String id) {
