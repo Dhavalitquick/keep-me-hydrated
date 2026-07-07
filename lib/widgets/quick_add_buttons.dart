@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/water_provider.dart';
 
 class QuickAddButtons extends ConsumerWidget {
-  const QuickAddButtons({super.key});
+  final Function? callAds;
+   const QuickAddButtons({super.key, this.callAds});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -24,7 +25,13 @@ class QuickAddButtons extends ConsumerWidget {
     if (amount == 500) label = 'Bottle';
 
     return ElevatedButton(
-      onPressed: () => ref.read(waterProvider.notifier).addWater(amount, label: label),
+      onPressed: () async {
+        await ref.read(waterProvider.notifier).addWater(amount, label: label).then((_) {
+          if(callAds != null) {
+            callAds!();
+          }
+        });
+      },
       style: ElevatedButton.styleFrom(
         shape: const CircleBorder(),
         padding: const EdgeInsets.all(20),

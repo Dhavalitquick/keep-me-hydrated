@@ -53,6 +53,7 @@ class NotificationService {
             'Hydration Reminders',
             importance: Importance.high,
             priority: Priority.high,
+            playSound: true,
           ),
           iOS: DarwinNotificationDetails(),
         ),

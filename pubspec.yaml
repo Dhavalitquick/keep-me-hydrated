@@ -42,6 +42,7 @@ dependencies:
   wave: ^0.2.2
   audioplayers: ^6.1.0
   flutter_native_timezone_latest: ^1.0.0
+  google_mobile_ads: ^9.0.0
 
 dev_dependencies:
   flutter_test:
