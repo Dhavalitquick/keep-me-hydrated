@@ -54,6 +54,7 @@ class NotificationService {
             importance: Importance.high,
             priority: Priority.high,
             playSound: true,
+            sound: RawResourceAndroidNotificationSound('drink_water'),
           ),
           iOS: DarwinNotificationDetails(),
         ),
