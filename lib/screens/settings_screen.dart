@@ -14,6 +14,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   RewardedAd? _rewardedAd;
+  bool _adShown = false;
 
   @override
   void initState() {
@@ -39,8 +40,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _showRewardedAdIfNeeded() {
-    if (_rewardedAd == null) {
-      _loadRewardedAd();
+    if (_adShown || _rewardedAd == null) {
+      if (_rewardedAd == null) _loadRewardedAd();
       return;
     }
 
@@ -50,12 +51,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
         _rewardedAd = null;
-        _loadRewardedAd(); // Load next ad
+        _adShown = true;
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
         ad.dispose();
         _rewardedAd = null;
-        _loadRewardedAd();
+        _adShown = true;
       },
     );
 
@@ -91,7 +92,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             trailing: const Icon(Icons.edit),
             onTap: () {
               _showSetGoalDialog(context, ref, waterData.dailyGoal);
-              _showRewardedAdIfNeeded();
             },
           ),
           const Divider(),
@@ -100,8 +100,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             subtitle: const Text('Get reminded to drink water'),
             value: settings.notificationsEnabled,
             onChanged: (value) {
+              if (!value) {
+                _showRewardedAdIfNeeded();
+              }
               ref.read(settingsProvider.notifier).toggleNotifications(value);
-              _showRewardedAdIfNeeded();
             },
           ),
           ListTile(
@@ -111,7 +113,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               _showIntervalPicker(context, ref, settings.reminderIntervalHours);
-              _showRewardedAdIfNeeded();
             },
           ),
           const Divider(),
@@ -120,7 +121,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             value: settings.isDarkMode,
             onChanged: (value) {
               ref.read(settingsProvider.notifier).toggleDarkMode(value);
-              _showRewardedAdIfNeeded();
             },
           ),
           const Divider(),
@@ -129,11 +129,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             textColor: Colors.red,
             leading: const Icon(Icons.refresh, color: Colors.red),
             onTap: () {
+              _showRewardedAdIfNeeded();
               ref.read(waterProvider.notifier).resetToday();
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Progress reset')),
               );
-              _showRewardedAdIfNeeded();
             },
           ),
         ],
@@ -147,12 +147,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Set Daily Goal'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            suffixText: 'ml',
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Manual Goal (ml)',
+                suffixText: 'ml',
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('OR', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _showAgeGenderPicker(context, ref);
+              },
+              child: const Text('Calculate by Age & Gender'),
+            ),
+          ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
@@ -167,6 +183,77 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: const Text('Save'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showAgeGenderPicker(BuildContext context, WidgetRef ref) {
+    String? selectedAgeGroup;
+    String? selectedGender;
+
+    final ageGroups = [
+      '13–15 years',
+      '16–18 years',
+      '19–30 years',
+      '31–50 years',
+      '51–70 years',
+      '71+ years',
+    ];
+
+    final Map<String, Map<String, int>> goals = {
+      '13–15 years': {'Male': 2400, 'Female': 2100},
+      '16–18 years': {'Male': 3300, 'Female': 2300},
+      '19–30 years': {'Male': 3700, 'Female': 2700},
+      '31–50 years': {'Male': 3700, 'Female': 2700},
+      '51–70 years': {'Male': 3400, 'Female': 2500},
+      '71+ years': {'Male': 3000, 'Female': 2300},
+    };
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Calculate Daily Goal'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: selectedAgeGroup,
+                hint: const Text('Select Age Group'),
+                items: ageGroups.map((group) {
+                  return DropdownMenuItem(value: group, child: Text(group));
+                }).toList(),
+                onChanged: (value) {
+                  setDialogState(() => selectedAgeGroup = value);
+                },
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: selectedGender,
+                hint: const Text('Select Gender'),
+                items: ['Male', 'Female'].map((gender) {
+                  return DropdownMenuItem(value: gender, child: Text(gender));
+                }).toList(),
+                onChanged: (value) {
+                  setDialogState(() => selectedGender = value);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+              onPressed: (selectedAgeGroup != null && selectedGender != null)
+                  ? () {
+                      final goal = goals[selectedAgeGroup]![selectedGender]!;
+                      ref.read(waterProvider.notifier).setDailyGoal(goal);
+                      Navigator.pop(context);
+                    }
+                  : null,
+              child: const Text('Calculate & Save'),
+            ),
+          ],
+        ),
       ),
     );
   }
