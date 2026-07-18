@@ -13,7 +13,14 @@ class WaterProgressIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = (consumed / goal);
+    // Actual progress (for displaying text)
+    final double actualProgress = goal > 0 ? consumed / goal : 0.0;
+
+    // Wave progress (strictly between 0 and 1)
+    final double waveProgress = actualProgress.clamp(0.0, 1.0);
+
+    final double waveHeight1 = (1 - waveProgress).clamp(0.0, 1.0);
+    final double waveHeight2 = (waveHeight1 + 0.02).clamp(0.0, 1.0);
 
     return Center(
       child: ClipOval(
@@ -38,10 +45,13 @@ class WaterProgressIndicator extends StatelessWidget {
                     ],
                     durations: const [35000, 20000],
                     heightPercentages: [
-                      1 - progress,
-                      (1 - progress) + 0.02,
+                      waveHeight1,
+                      waveHeight2,
                     ],
-                    blur: const MaskFilter.blur(BlurStyle.solid, 2),
+                    blur: const MaskFilter.blur(
+                      BlurStyle.solid,
+                      2,
+                    ),
                     gradientBegin: Alignment.bottomLeft,
                     gradientEnd: Alignment.topRight,
                   ),
@@ -65,7 +75,7 @@ class WaterProgressIndicator extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    "${(progress * 100).toInt()}%",
+                    "${(actualProgress * 100).toInt()}%",
                     style: const TextStyle(
                       fontSize: 34,
                       fontWeight: FontWeight.bold,
