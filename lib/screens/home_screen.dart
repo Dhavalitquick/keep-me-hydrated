@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -20,6 +21,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     with WidgetsBindingObserver {
   BannerAd? _bannerAd;
   InterstitialAd? _interstitialAd;
+  int _quickAddClickCount = 0;
 
   @override
   void initState() {
@@ -106,6 +108,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget build(BuildContext context) {
     final waterData = ref.watch(waterProvider);
     final remaining = waterData.dailyGoal - waterData.consumedAmount;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Keep Me Hydrated'),
@@ -134,7 +137,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const SizedBox(height: 10),
                   WaterProgressIndicator(
@@ -162,14 +164,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     ],
                   ),
                   const SizedBox(height: 30),
-                  QuickAddButtons(callAds: () {
-                    showInterstitialAd();
-                  },),
+                  QuickAddButtons(
+                    callAds: () {
+                      _quickAddClickCount++;
+                      // Randomly choose a target between 3 and 5
+                      int target = 3 + Random().nextInt(3); 
+                      if (_quickAddClickCount >= target) {
+                        showInterstitialAd();
+                        _quickAddClickCount = 0;
+                      }
+                    },
+                  ),
                   const SizedBox(height: 20),
                   ElevatedButton.icon(
                     onPressed: () => _showAddCustomAmountDialog(context, ref),
                     icon: const Icon(Icons.add),
-                    label: const Text('Add Custom Amount'),
+                    label: const Text('Add Custom Amount of ml'),
                   ),
                   const SizedBox(height: 30),
                   const Divider(),
@@ -177,9 +187,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'Today\'s Logs',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -197,15 +208,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         final log = waterData.logs[index];
                         return ListTile(
                           contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.water_drop, color: Colors.blue),
+                          leading:
+                              const Icon(Icons.water_drop, color: Colors.blue),
                           title: Text(
                             '${log.amount} ml${log.label != null && log.label!.isNotEmpty ? ' (${log.label})' : ''}',
                           ),
-                          subtitle: Text(DateFormat('hh:mm a').format(log.timestamp)),
+                          subtitle:
+                              Text(DateFormat('hh:mm a').format(log.timestamp)),
                           trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.red),
-                            onPressed: () =>
-                                ref.read(waterProvider.notifier).removeLog(log.id),
+                            icon: const Icon(Icons.delete_outline,
+                                color: Colors.red),
+                            onPressed: () => ref
+                                .read(waterProvider.notifier)
+                                .removeLog(log.id),
                           ),
                         );
                       },
@@ -236,7 +251,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   ) {
     return Card(
       elevation: 0,
-      color: color.withOpacity(0.1),
+      color: color.withAlpha(15),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         child: Column(
@@ -247,9 +262,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             Text(
               value,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
             ),
           ],
         ),

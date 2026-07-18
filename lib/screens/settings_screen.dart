@@ -14,12 +14,32 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   RewardedAd? _rewardedAd;
+  BannerAd? _bannerAd;
   bool _adShown = false;
 
   @override
   void initState() {
     super.initState();
     _loadRewardedAd();
+    _loadBannerAd();
+  }
+
+  void _loadBannerAd() {
+    BannerAd(
+      adUnitId: AdHelper.bannerAdUnitId,
+      request: const AdRequest(),
+      size: AdSize.banner,
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          setState(() {
+            _bannerAd = ad as BannerAd;
+          });
+        },
+        onAdFailedToLoad: (ad, err) {
+          ad.dispose();
+        },
+      ),
+    ).load();
   }
 
   void _loadRewardedAd() {
@@ -46,7 +66,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
 
     final ad = _rewardedAd!;
-
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
@@ -60,18 +79,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       },
     );
 
-    ad.show(
-      onUserEarnedReward: (ad, reward) {
-        // Reward callback
-      },
-    );
-
+    ad.show(onUserEarnedReward: (ad, reward) {});
     _rewardedAd = null;
   }
 
   @override
   void dispose() {
     _rewardedAd?.dispose();
+    _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -84,58 +99,70 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       appBar: AppBar(
         title: const Text('Settings'),
       ),
-      body: ListView(
+      body: Column(
         children: [
-          ListTile(
-            title: const Text('Daily Water Goal'),
-            subtitle: Text('${waterData.dailyGoal} ml'),
-            trailing: const Icon(Icons.edit),
-            onTap: () {
-              _showSetGoalDialog(context, ref, waterData.dailyGoal);
-            },
+          Expanded(
+            child: ListView(
+              children: [
+                ListTile(
+                  title: const Text('Daily Water Goal'),
+                  subtitle: Text('${waterData.dailyGoal} ml'),
+                  trailing: const Icon(Icons.edit),
+                  onTap: () =>
+                      _showSetGoalDialog(context, ref, waterData.dailyGoal),
+                ),
+                const Divider(),
+                SwitchListTile(
+                  title: const Text('Enable Notifications'),
+                  subtitle: const Text('Get reminded to drink water'),
+                  value: settings.notificationsEnabled,
+                  onChanged: (value) {
+                    if (!value) _showRewardedAdIfNeeded();
+                    ref
+                        .read(settingsProvider.notifier)
+                        .toggleNotifications(value);
+                  },
+                ),
+                ListTile(
+                  title: const Text('Reminder Interval'),
+                  subtitle:
+                      Text('Every ${settings.reminderIntervalHours} hour(s)'),
+                  enabled: settings.notificationsEnabled,
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showIntervalPicker(
+                      context, ref, settings.reminderIntervalHours),
+                ),
+                const Divider(),
+                SwitchListTile(
+                  title: const Text('Dark Mode'),
+                  value: settings.isDarkMode,
+                  onChanged: (value) =>
+                      ref.read(settingsProvider.notifier).toggleDarkMode(value),
+                ),
+                const Divider(),
+                ListTile(
+                  title: const Text('Reset Today\'s Progress'),
+                  textColor: Colors.red,
+                  leading: const Icon(Icons.refresh, color: Colors.red),
+                  onTap: () {
+                    _showRewardedAdIfNeeded();
+                    ref.read(waterProvider.notifier).resetToday();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Progress reset')),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
-          const Divider(),
-          SwitchListTile(
-            title: const Text('Enable Notifications'),
-            subtitle: const Text('Get reminded to drink water'),
-            value: settings.notificationsEnabled,
-            onChanged: (value) {
-              if (!value) {
-                _showRewardedAdIfNeeded();
-              }
-              ref.read(settingsProvider.notifier).toggleNotifications(value);
-            },
-          ),
-          ListTile(
-            title: const Text('Reminder Interval'),
-            subtitle: Text('Every ${settings.reminderIntervalHours} hour(s)'),
-            enabled: settings.notificationsEnabled,
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              _showIntervalPicker(context, ref, settings.reminderIntervalHours);
-            },
-          ),
-          const Divider(),
-          SwitchListTile(
-            title: const Text('Dark Mode'),
-            value: settings.isDarkMode,
-            onChanged: (value) {
-              ref.read(settingsProvider.notifier).toggleDarkMode(value);
-            },
-          ),
-          const Divider(),
-          ListTile(
-            title: const Text('Reset Today\'s Progress'),
-            textColor: Colors.red,
-            leading: const Icon(Icons.refresh, color: Colors.red),
-            onTap: () {
-              _showRewardedAdIfNeeded();
-              ref.read(waterProvider.notifier).resetToday();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Progress reset')),
-              );
-            },
-          ),
+          if (_bannerAd != null)
+            SafeArea(
+              child: SizedBox(
+                width: _bannerAd!.size.width.toDouble(),
+                height: _bannerAd!.size.height.toDouble(),
+                child: AdWidget(ad: _bannerAd!),
+              ),
+            ),
         ],
       ),
     );
@@ -171,7 +198,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
           TextButton(
             onPressed: () {
               final goal = int.tryParse(controller.text);
@@ -241,7 +270,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
             TextButton(
               onPressed: (selectedAgeGroup != null && selectedGender != null)
                   ? () {
@@ -258,7 +289,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  void _showIntervalPicker(BuildContext context, WidgetRef ref, int currentInterval) {
+  void _showIntervalPicker(
+      BuildContext context, WidgetRef ref, int currentInterval) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -272,7 +304,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               groupValue: currentInterval,
               onChanged: (value) {
                 if (value != null) {
-                  ref.read(settingsProvider.notifier).setReminderInterval(value);
+                  ref
+                      .read(settingsProvider.notifier)
+                      .setReminderInterval(value);
                   Navigator.pop(context);
                 }
               },
